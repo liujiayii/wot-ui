@@ -55,7 +55,11 @@ import {
 const props = defineProps(swipeActionProps)
 const emit = defineEmits<SwipeActionEmits>()
 
-const queue = inject<Queue | null>(queueKey, null)
+// 抖音端 setup 同步期 inject 不可靠，直接走全局队列兜底，保证注册路径一致
+let queue: Queue | null = null
+// #ifndef MP-TOUTIAO
+queue = inject<Queue | null>(queueKey, null)
+// #endif
 
 /** 内容容器内联样式（平移与过渡） */
 const wrapperStyle = ref<string>('')
@@ -134,12 +138,21 @@ function changeState(value: SwipeActionStatus, old?: SwipeActionStatus) {
   })
 }
 
+/** 左右操作区域宽度缓存，避免拖动过程中每个 move 事件重复触发节点查询 */
+let widthsCache: [number, number] | null = null
+
 /**
  * 获取左侧、右侧操作区域宽度（px）
+ * @param useCache 是否优先使用缓存（拖动过程中复用，手势开始时缓存会被置空）
  * @returns [左侧宽度, 右侧宽度]
  */
-function getWidths(): Promise<[number, number]> {
-  return Promise.all([
+function getWidths(useCache = false): Promise<[number, number]> {
+  if (useCache && widthsCache) {
+    return Promise.resolve(widthsCache)
+  }
+  // 注意：冷路径必须保持与无缓存版本完全相同的 Promise 链深度，
+  // 缓存写入通过旁路监听完成，避免增加微任务轮次改变既有时序
+  const result = Promise.all([
     getRect('.wd-swipe-action__left', false, proxy).then((rect) => {
       return rect.width ? rect.width : 0
     }),
@@ -147,6 +160,10 @@ function getWidths(): Promise<[number, number]> {
       return rect.width ? rect.width : 0
     })
   ])
+  result.then(([leftWidth, rightWidth]) => {
+    widthsCache = [leftWidth, rightWidth]
+  })
+  return result
 }
 
 /**
@@ -189,7 +206,11 @@ function handleClick(position?: SwipeActionPosition) {
 function startDrag(event: TouchEvent, resetClick = true) {
   if (props.disabled) return
 
-  if (resetClick) ignoreClick = false
+  if (resetClick) {
+    ignoreClick = false
+    // 手势开始时置空缓存，首次 move 重新测量，保证按钮宽度变化后取值新鲜
+    widthsCache = null
+  }
   originOffset.value = wrapperOffset.value
   touch.touchStart(event)
   if (queue && queue.closeOther) {
@@ -219,7 +240,7 @@ function onDrag(event: TouchEvent) {
   ignoreClick = ignoreClick || touch.offsetX.value >= 20
 
   const offset = originOffset.value + touch.deltaX.value
-  getWidths().then(([leftWidth, rightWidth]) => {
+  getWidths(true).then(([leftWidth, rightWidth]) => {
     if ((leftWidth === 0 && offset > 0) || (rightWidth === 0 && offset < 0)) {
       swipeMove(0)
       return startDrag(event, false)
@@ -243,7 +264,7 @@ function endDrag() {
   const THRESHOLD = 0.3
   touching.value = false
 
-  getWidths().then(([leftWidth, rightWidth]) => {
+  getWidths(true).then(([leftWidth, rightWidth]) => {
     if (
       originOffset.value < 0 && // 之前展示的是右按钮
       wrapperOffset.value < 0 && // 目前仍然是右按钮

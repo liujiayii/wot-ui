@@ -69,3 +69,20 @@ $tabbar-round-shadow: var(
     z-index: $tabbar-z-index;
   }
 }
+
+/* #ifdef MP-TOUTIAO */
+/* 抖音端不支持 virtualHost：wd-tabbar-item 的宿主节点会成为 .wd-tabbar
+   的直接子项且无任何样式，item 内层的 flex:1 因父级不是 flex 容器而失效。
+   标签选择器在抖音组件 ttss 中不可靠，改用 grid 布局：宿主节点作为 grid
+   子项被 grid-auto-columns: 1fr 强制均分列宽，不依赖任何选择器支持。 */
+.wd-tabbar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+wd-tabbar-item {
+  flex: 1;
+  min-width: 0;
+}
+/* #endif */

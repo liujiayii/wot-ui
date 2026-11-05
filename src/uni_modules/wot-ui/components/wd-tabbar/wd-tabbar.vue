@@ -99,9 +99,16 @@ function setPlaceholderHeight() {
     return
   }
 
-  getRect('.wd-tabbar', false, proxy).then((res) => {
-    height.value = Number(res.height)
-  })
+  getRect('.wd-tabbar', false, proxy)
+    .then((res) => {
+      // 节点未就绪时 height 可能为 undefined，避免占位高度被置为 NaN
+      if (isDef(res.height)) {
+        height.value = Number(res.height)
+      }
+    })
+    .catch(() => {
+      // 查询失败（节点不存在或平台时序问题）时保持当前占位高度，避免 unhandled rejection
+    })
 }
 </script>
 <style lang="scss">
