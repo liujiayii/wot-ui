@@ -16,6 +16,10 @@ const gettingStartedNavItems = [
   {
     text: '常见问题',
     link: '/guide/common-problems',
+  },
+  {
+    text: '抖音小程序适配',
+    link: '/guide/douyin-adaptation',
   }
 ]
 const designSystemNavItems = [
